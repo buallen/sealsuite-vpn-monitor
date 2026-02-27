@@ -23,35 +23,49 @@ if ! pgrep -x "SealSuite" > /dev/null; then
 fi
 
 # Check VPN connection status
-# Method: Try to reach an internal resource only accessible via VPN
+# Method: Try to access google.com - if it fails, VPN is OFF
 VPN_CONNECTED=false
 
-# Try to ping an internal IP (customize this to an IP that's only reachable via VPN)
-# Common internal ranges: 10.x.x.x, 172.16-31.x.x, 192.168.x.x
-# Check if we can reach an internal gateway or DNS server
-# Timeout after 1 second
-
-# Method 1: Check if there's an active route to corporate network through utun
-# Look for routes in common corporate IP ranges
-if netstat -rn | grep -E "^10\." | grep -v "^10\.0\.0\." | grep -q "utun"; then
+# Try to curl google.com with 3 second timeout
+if curl -s --connect-timeout 3 --max-time 5 https://www.google.com > /dev/null 2>&1; then
     VPN_CONNECTED=true
-    log "VPN is ON (corporate routes via utun detected)"
-elif netstat -rn | grep -E "^172\.(1[6-9]|2[0-9]|3[01])\." | grep -q "utun"; then
-    VPN_CONNECTED=true
-    log "VPN is ON (corporate routes via utun detected)"
+    log "VPN is ON (google.com is accessible)"
 else
     VPN_CONNECTED=false
-    log "VPN is OFF (no corporate routes detected)"
+    log "VPN is OFF (google.com is NOT accessible)"
 fi
 
-# If VPN is not connected, send a notification
+# If VPN is not connected, auto-reconnect
 if [ "$VPN_CONNECTED" = false ]; then
-    log "VPN is DISCONNECTED. Sending notification..."
+    log "VPN is DISCONNECTED. Will attempt to reconnect..."
 
-    # Send macOS notification
-    osascript -e 'display notification "SealSuite VPN is disconnected. Please reconnect." with title "🦭 VPN Monitor" sound name "Glass"'
+    # IMPORTANT: Only click the toggle if it's currently in OFF state
+    # Clicking when it's ON would turn it OFF!
 
-    log "Notification sent to user"
+    # Run the smart toggle script that:
+    # 1. Activates SealSuite briefly
+    # 2. Clicks the toggle
+    # 3. Returns focus to previous app
+    osascript "$HOME/Library/Scripts/sealsuite-vpn-monitor/toggle_vpn_smart.scpt" 2>&1
+
+    if [ $? -eq 0 ]; then
+        log "Toggle clicked. Verifying connection..."
+
+        # Wait for connection to establish
+        sleep 5
+
+        # Re-check if VPN is now connected
+        if netstat -rn | grep -E "^10\." | grep -v "^10\.0\.0\." | grep -q "utun" || netstat -rn | grep -E "^172\.(1[6-9]|2[0-9]|3[01])\." | grep -q "utun"; then
+            log "✅ VPN reconnected successfully!"
+            osascript -e 'display notification "VPN reconnected successfully!" with title "🦭 VPN Monitor" sound name "Tink"' 2>/dev/null
+        else
+            log "⚠️ Toggle clicked but VPN still OFF - coordinates may be wrong"
+            osascript -e 'display notification "VPN toggle clicked but still OFF. Please check manually." with title "🦭 VPN Monitor" sound name "Glass"' 2>/dev/null
+        fi
+    else
+        log "ERROR: Failed to execute toggle script"
+        osascript -e 'display notification "Auto-reconnect failed. Please reconnect manually." with title "🦭 VPN Monitor Error" sound name "Basso"' 2>/dev/null
+    fi
 else
     log "VPN is connected. No action needed."
 fi

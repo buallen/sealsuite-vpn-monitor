@@ -35,7 +35,9 @@ echo ""
 # Step 3: Copy scripts
 echo "📋 Copying scripts..."
 cp "$SCRIPT_DIR/check_and_reconnect_vpn.sh" "$SCRIPTS_DIR/"
-cp "$SCRIPT_DIR/toggle_vpn.scpt" "$SCRIPTS_DIR/"
+cp "$SCRIPT_DIR/toggle_vpn_smart.scpt" "$SCRIPTS_DIR/"
+cp "$SCRIPT_DIR/check_vpn_status.scpt" "$SCRIPTS_DIR/" 2>/dev/null || true
+cp "$SCRIPT_DIR/toggle_vpn.scpt" "$SCRIPTS_DIR/" 2>/dev/null || true
 chmod +x "$SCRIPTS_DIR/check_and_reconnect_vpn.sh"
 echo "✓ Scripts copied and made executable"
 echo ""

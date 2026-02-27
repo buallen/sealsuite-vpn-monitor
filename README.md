@@ -17,8 +17,9 @@ SealSuite VPN sometimes disconnects automatically, requiring manual intervention
 ## ✨ Features
 
 - ✅ **Automatic Monitoring** - Checks VPN status every 60 seconds
-- ✅ **Smart Detection** - Accurately detects VPN state by checking corporate routes
-- ✅ **Non-Intrusive Notifications** - Alerts you without interrupting your work
+- ✅ **Smart Detection** - Uses curl to test internet connectivity (most reliable method)
+- ✅ **Auto-Reconnect** - Automatically toggles VPN back ON when disconnected
+- ✅ **Minimal Interruption** - Briefly activates window, clicks, returns focus
 - ✅ **Background Service** - Runs via macOS LaunchAgent
 - ✅ **Comprehensive Logging** - Track all monitoring activity
 - ✅ **One-Click Install** - Simple installation script
@@ -47,16 +48,28 @@ chmod +x install-one-click.sh
 
 ## 🔐 Important: Enable Permissions
 
-**After installation, you MUST enable Full Disk Access:**
+**After installation, you MUST enable Accessibility permissions:**
 
-1. Open **System Settings** → **Privacy & Security** → **Full Disk Access**
+1. Open **System Settings** → **Privacy & Security** → **Accessibility**
 2. Click **🔒** to unlock (enter your password)
 3. Click **+** button
 4. Add: `/bin/bash`
-5. Add: **Terminal** (or your terminal app)
-6. Enable the toggles ✅
+5. Add: `osascript` (located at `/usr/bin/osascript`)
+6. Add: **Terminal** (or your terminal app)
+7. Enable all toggles ✅
 
 **Without these permissions, auto-reconnect won't work!**
+
+### Optional: For Better Click Accuracy
+
+If auto-reconnect isn't working, calibrate the toggle coordinates:
+
+```bash
+cd ~/Documents/GitHub/sealsuite-vpn-monitor
+./find_toggle_position.sh
+```
+
+This tool will help you find the exact position of the VPN toggle.
 
 ---
 
@@ -65,12 +78,25 @@ chmod +x install-one-click.sh
 Test the monitor:
 
 1. **Toggle VPN OFF** in SealSuite
-2. **Wait up to 60 seconds**
-3. **Watch** as VPN automatically toggles back ON
+2. **Wait up to 60 seconds** (monitor checks every minute)
+3. **Watch** as the script:
+   - Detects VPN is OFF (google.com not accessible)
+   - Briefly activates SealSuite window
+   - Clicks the toggle
+   - Returns focus to your previous app
+   - Verifies connection restored
 
-Check logs:
+Check logs in real-time:
 ```bash
 tail -f ~/Library/Logs/sealsuite-vpn-monitor.log
+```
+
+You should see:
+```
+[timestamp] VPN is OFF (google.com is NOT accessible)
+[timestamp] VPN is DISCONNECTED. Will attempt to reconnect...
+[timestamp] Toggle clicked. Verifying connection...
+[timestamp] ✅ VPN reconnected successfully!
 ```
 
 ---
@@ -86,20 +112,30 @@ tail -f ~/Library/Logs/sealsuite-vpn-monitor.log
 ┌─────────────────────────────────────────┐
 │   Check Script (Bash)                   │
 │   • Is SealSuite running?               │
-│   • Is VPN connected?                   │
+│   • curl google.com (VPN blocks it)     │
 └──────────────┬──────────────────────────┘
                │
-               ▼ (if VPN is OFF)
+               ▼ (if google.com NOT accessible = VPN OFF)
 ┌─────────────────────────────────────────┐
-│   AppleScript (GUI Automation)          │
-│   • Click VPN toggle in SealSuite       │
+│   AppleScript (Smart Toggle)            │
+│   • Activate SealSuite briefly          │
+│   • Click VPN toggle at coordinates     │
+│   • Return focus to previous app        │
 └──────────────┬──────────────────────────┘
                │
                ▼
 ┌─────────────────────────────────────────┐
-│   Logging (all actions tracked)         │
+│   Verify & Notify                       │
+│   • Re-check with curl                  │
+│   • Send success/failure notification   │
 └─────────────────────────────────────────┘
 ```
+
+### Detection Method
+
+The script uses `curl google.com` to detect VPN status:
+- **VPN ON** → Google.com accessible → No action needed
+- **VPN OFF** → Google.com blocked → Auto-reconnect triggered
 
 ---
 
@@ -173,11 +209,14 @@ launchctl load ~/Library/LaunchAgents/com.sealsuite.vpnmonitor.plist
 ```
 sealsuite-vpn-monitor/
 ├── install-one-click.sh           # One-click installation script
-├── check_and_reconnect_vpn.sh     # Main monitoring script
-├── toggle_vpn.scpt                # AppleScript for GUI automation
+├── check_and_reconnect_vpn.sh     # Main monitoring script (curl-based detection)
+├── toggle_vpn_smart.scpt          # Smart toggle (activates, clicks, returns focus)
+├── check_vpn_status.scpt          # VPN status checker (optional)
+├── find_toggle_position.sh        # Coordinate calibration tool
 ├── com.sealsuite.vpnmonitor.plist # LaunchAgent configuration
 ├── uninstall.sh                   # Uninstallation script
 ├── test.sh                        # Testing script
+├── LICENSE                        # MIT License
 └── README.md                      # This file
 ```
 
@@ -188,24 +227,43 @@ sealsuite-vpn-monitor/
 ### VPN Not Reconnecting
 
 1. **Check accessibility permissions** (most common issue)
-   - System Settings → Privacy & Security → Full Disk Access
-   - Ensure `/bin/bash` and Terminal are enabled
+   - System Settings → Privacy & Security → Accessibility
+   - Ensure `/bin/bash`, `osascript`, and Terminal are enabled ✅
 
 2. **Check logs**
    ```bash
    tail -f ~/Library/Logs/sealsuite-vpn-monitor.log
    ```
 
+   Look for:
+   - `VPN is OFF (google.com is NOT accessible)` - Detection working ✅
+   - `Toggle clicked. Verifying connection...` - Click triggered ✅
+   - `⚠️ Toggle clicked but VPN still OFF` - Coordinates wrong ❌
+
 3. **Verify LaunchAgent is running**
    ```bash
    launchctl list | grep sealsuite
    ```
 
-### AppleScript Errors
+### Toggle Click Not Working
 
-If the AppleScript can't find the toggle button, you may need to adjust the UI automation logic in `toggle_vpn.scpt`.
+If the script detects correctly but doesn't reconnect:
 
-Use **Accessibility Inspector** (in Xcode) to inspect SealSuite's UI hierarchy.
+1. **Calibrate toggle coordinates**
+   ```bash
+   cd ~/Documents/GitHub/sealsuite-vpn-monitor
+   ./find_toggle_position.sh
+   ```
+
+2. **Update the coordinates** in `toggle_vpn_smart.scpt`:
+   ```applescript
+   do shell script "cliclick c:YOUR_X,YOUR_Y"
+   ```
+
+3. **Manually test the toggle**
+   ```bash
+   osascript ~/Library/Scripts/sealsuite-vpn-monitor/toggle_vpn_smart.scpt
+   ```
 
 ---
 
