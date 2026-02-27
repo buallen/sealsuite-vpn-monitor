@@ -30,13 +30,13 @@ SealSuite VPN sometimes disconnects automatically, requiring manual intervention
 ### One-Click Install (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/sealsuite-vpn-monitor/main/install-one-click.sh | bash
+curl -fsSL https://raw.githubusercontent.com/buallen/sealsuite-vpn-monitor/main/install-one-click.sh | bash
 ```
 
 Or clone and install:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/sealsuite-vpn-monitor.git
+git clone https://github.com/buallen/sealsuite-vpn-monitor.git
 cd sealsuite-vpn-monitor
 chmod +x install-one-click.sh
 ./install-one-click.sh
@@ -258,8 +258,8 @@ MIT License - Feel free to use and modify!
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/YOUR_USERNAME/sealsuite-vpn-monitor/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/YOUR_USERNAME/sealsuite-vpn-monitor/discussions)
+- **Issues**: [GitHub Issues](https://github.com/buallen/sealsuite-vpn-monitor/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/buallen/sealsuite-vpn-monitor/discussions)
 
 ---
 
