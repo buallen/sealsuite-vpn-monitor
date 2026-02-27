@@ -10,14 +10,15 @@
 
 ## 🚨 Problem Solved
 
-SealSuite VPN sometimes disconnects automatically, requiring manual intervention to toggle it back on. This tool monitors the connection every 60 seconds and automatically clicks the toggle to reconnect.
+SealSuite VPN sometimes disconnects automatically, requiring manual intervention to toggle it back on. This tool monitors the connection every 60 seconds and sends you a **non-intrusive notification** when disconnection is detected, so you can quickly reconnect without constantly checking.
 
 ---
 
 ## ✨ Features
 
 - ✅ **Automatic Monitoring** - Checks VPN status every 60 seconds
-- ✅ **Auto-Reconnect** - Automatically toggles VPN back ON when disconnected
+- ✅ **Smart Detection** - Accurately detects VPN state by checking corporate routes
+- ✅ **Non-Intrusive Notifications** - Alerts you without interrupting your work
 - ✅ **Background Service** - Runs via macOS LaunchAgent
 - ✅ **Comprehensive Logging** - Track all monitoring activity
 - ✅ **One-Click Install** - Simple installation script

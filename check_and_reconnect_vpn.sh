@@ -22,34 +22,36 @@ if ! pgrep -x "SealSuite" > /dev/null; then
     sleep 3
 fi
 
-# Check VPN connection status by looking for VPN interfaces
-# SealSuite typically creates utun interfaces when connected
+# Check VPN connection status
+# Method: Try to reach an internal resource only accessible via VPN
 VPN_CONNECTED=false
 
-# Method 1: Check for utun interfaces with SealSuite patterns
-if ifconfig | grep -A 3 "utun" | grep -q "inet"; then
+# Try to ping an internal IP (customize this to an IP that's only reachable via VPN)
+# Common internal ranges: 10.x.x.x, 172.16-31.x.x, 192.168.x.x
+# Check if we can reach an internal gateway or DNS server
+# Timeout after 1 second
+
+# Method 1: Check if there's an active route to corporate network through utun
+# Look for routes in common corporate IP ranges
+if netstat -rn | grep -E "^10\." | grep -v "^10\.0\.0\." | grep -q "utun"; then
     VPN_CONNECTED=true
-    log "VPN appears to be connected (utun interface found)"
+    log "VPN is ON (corporate routes via utun detected)"
+elif netstat -rn | grep -E "^172\.(1[6-9]|2[0-9]|3[01])\." | grep -q "utun"; then
+    VPN_CONNECTED=true
+    log "VPN is ON (corporate routes via utun detected)"
+else
+    VPN_CONNECTED=false
+    log "VPN is OFF (no corporate routes detected)"
 fi
 
-# Method 2: Check scutil for VPN status (backup method)
-if scutil --nc list | grep -q "Connected"; then
-    VPN_CONNECTED=true
-    log "VPN appears to be connected (scutil confirms)"
-fi
-
-# If VPN is not connected, trigger the toggle via AppleScript
+# If VPN is not connected, send a notification
 if [ "$VPN_CONNECTED" = false ]; then
-    log "VPN is DISCONNECTED. Attempting to reconnect..."
+    log "VPN is DISCONNECTED. Sending notification..."
 
-    # Run the AppleScript to click the VPN toggle
-    osascript "$HOME/Documents/GitHub/sealsuite-vpn-monitor/toggle_vpn.scpt"
+    # Send macOS notification
+    osascript -e 'display notification "SealSuite VPN is disconnected. Please reconnect." with title "🦭 VPN Monitor" sound name "Glass"'
 
-    if [ $? -eq 0 ]; then
-        log "Successfully triggered VPN reconnect"
-    else
-        log "ERROR: Failed to trigger VPN reconnect via AppleScript"
-    fi
+    log "Notification sent to user"
 else
     log "VPN is connected. No action needed."
 fi
