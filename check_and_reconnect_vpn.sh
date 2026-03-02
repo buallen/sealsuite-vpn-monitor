@@ -23,16 +23,16 @@ if ! pgrep -x "SealSuite" > /dev/null; then
 fi
 
 # Check VPN connection status
-# Method: Try to access google.com - if it fails, VPN is OFF
+# Method: Ping google.com - if it fails, VPN is OFF (faster than curl)
 VPN_CONNECTED=false
 
-# Try to curl google.com with 3 second timeout
-if curl -s --connect-timeout 3 --max-time 5 https://www.google.com > /dev/null 2>&1; then
+# Ping google.com with 2 second timeout (1 packet)
+if ping -c 1 -W 2000 8.8.8.8 > /dev/null 2>&1; then
     VPN_CONNECTED=true
-    log "VPN is ON (google.com is accessible)"
+    log "VPN is ON (8.8.8.8 is reachable)"
 else
     VPN_CONNECTED=false
-    log "VPN is OFF (google.com is NOT accessible)"
+    log "VPN is OFF (8.8.8.8 is NOT reachable)"
 fi
 
 # If VPN is not connected, auto-reconnect
