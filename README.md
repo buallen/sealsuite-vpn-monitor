@@ -93,7 +93,7 @@ tail -f ~/Library/Logs/sealsuite-vpn-monitor.log
 
 You should see:
 ```
-[timestamp] VPN is OFF (8.8.8.8 is NOT reachable)
+[timestamp] VPN is OFF (google.com is NOT reachable)
 [timestamp] VPN is DISCONNECTED. Will attempt to reconnect...
 [timestamp] Toggle clicked. Verifying connection...
 [timestamp] ✅ VPN reconnected successfully!
@@ -112,7 +112,7 @@ You should see:
 ┌─────────────────────────────────────────┐
 │   Check Script (Bash)                   │
 │   • Is SealSuite running?               │
-│   • ping 8.8.8.8 (VPN blocks it)        │
+│   • ping google.com (VPN blocks it)     │
 └──────────────┬──────────────────────────┘
                │
                ▼ (if google.com NOT accessible = VPN OFF)
@@ -133,9 +133,9 @@ You should see:
 
 ### Detection Method
 
-The script uses `ping 8.8.8.8` to detect VPN status:
-- **VPN ON** → 8.8.8.8 (Google DNS) is reachable → No action needed
-- **VPN OFF** → 8.8.8.8 blocked by VPN policy → Auto-reconnect triggered
+The script uses `ping google.com` to detect VPN status:
+- **VPN ON** → google.com is reachable → No action needed
+- **VPN OFF** → google.com blocked by VPN policy → Auto-reconnect triggered
 
 **Why ping instead of curl?**
 - ⚡ Faster (ICMP vs HTTP)
@@ -241,7 +241,7 @@ sealsuite-vpn-monitor/
    ```
 
    Look for:
-   - `VPN is OFF (8.8.8.8 is NOT reachable)` - Detection working ✅
+   - `VPN is OFF (google.com is NOT reachable)` - Detection working ✅
    - `Toggle clicked. Verifying connection...` - Click triggered ✅
    - `⚠️ Toggle clicked but VPN still OFF` - Coordinates wrong ❌
 
