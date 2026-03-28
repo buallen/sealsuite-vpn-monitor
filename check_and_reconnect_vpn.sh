@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# SealSuite VPN Auto-Reconnect Monitor
-# This script checks if SealSuite VPN is connected and auto-toggles it back on if disconnected
+# SealSuite VPN Auto-Reconnect Monitor (Optimized Version)
+# Core Goal: Automatically toggle ON the VPN connectivity button when SealSuite silently drops it.
+# Sensitivity: Triggers ONLY when physical internet is alive BUT google.com is unreachable for 60s.
 
 LOG_FILE="$HOME/Library/Logs/sealsuite-vpn-monitor.log"
 MAX_LOG_SIZE=1048576  # 1MB
 
-# Rotate log if too large
 if [ -f "$LOG_FILE" ] && [ $(stat -f%z "$LOG_FILE") -gt $MAX_LOG_SIZE ]; then
     mv "$LOG_FILE" "$LOG_FILE.old"
 fi
@@ -15,57 +15,86 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
 }
 
-# Check if SealSuite app is running
-if ! pgrep -x "SealSuite" > /dev/null; then
-    log "SealSuite app is not running. Starting it..."
-    open -a "SealSuite"
-    sleep 3
+# ==========================================
+# 1. Physical Network Pre-check
+# ==========================================
+# If physical internet (DNS) is down, toggling the button does nothing. Exit silently.
+# Using 223.5.5.5 (Aliyun DNS) as a reliable indicator of physical connectivity in CN.
+if ! ping -c 1 -W 2000 223.5.5.5 > /dev/null 2>&1; then
+    # log "Physical network down. Skipping check."
+    exit 0
 fi
 
-# Check VPN connection status
-# Method: Ping google.com - if it fails, VPN is OFF (faster than curl)
-VPN_CONNECTED=false
+# ==========================================
+# 2. VPN Connectivity Check (Google as metric)
+# ==========================================
+check_google() {
+    # -L to follow redirects (some captive portals might redirect)
+    # -m 5 to give it a bit more time for high-latency connections
+    curl -s -I -m 5 -L https://www.google.com | grep -q "HTTP/.* 200\|HTTP/.* 30"
+}
 
-# Ping google.com with 2 second timeout (1 packet)
-if ping -c 1 -W 2000 8.8.8.8 > /dev/null 2>&1; then
-    VPN_CONNECTED=true
-    log "VPN is ON (8.8.8.8 is reachable)"
-else
-    VPN_CONNECTED=false
-    log "VPN is OFF (8.8.8.8 is NOT reachable)"
+VPN_HEALTHY=true
+
+if ! check_google; then
+    log "Initial Google check failed. Waiting 20s (Extended from 15s) for possible lag spike..."
+    sleep 20
+    
+    if ! check_google; then
+        log "Still dead after 20s. Waiting another 40s (Extended from 30s) to confirm SealSuite dropped..."
+        sleep 40
+        
+        if ! check_google; then
+            log "Google unreachable for 60s+. Checking SealSuite UI state..."
+            
+            # Double check if the app says it's OFF
+            UI_STATE=$(osascript "$HOME/Library/Scripts/sealsuite-vpn-monitor/check_vpn_status.scpt" 2>/dev/null)
+            log "SealSuite UI reports state: $UI_STATE"
+            
+            if [[ "$UI_STATE" == "off" ]] || [[ "$UI_STATE" == "app_not_running" ]]; then
+                log "Conclusion: SealSuite VPN button is OFF. Proceeding with auto-toggle."
+                VPN_HEALTHY=false
+            else
+                log "UI state is $UI_STATE. Avoiding false toggle (might be a major network outage or login expired)."
+                VPN_HEALTHY=true
+            fi
+        else
+            log "Recovered during 40s wait. (Lag spike avoided)"
+            VPN_HEALTHY=true
+        fi
+    else
+        log "Recovered during 20s wait. (Minor lag avoided)"
+        VPN_HEALTHY=true
+    fi
 fi
 
-# If VPN is not connected, auto-reconnect
-if [ "$VPN_CONNECTED" = false ]; then
-    log "VPN is DISCONNECTED. Will attempt to reconnect..."
+# ==========================================
+# 3. Auto-Toggle Action
+# ==========================================
+if [ "$VPN_HEALTHY" = false ]; then
+    
+    # Ensure app is running before trying to click its UI
+    if ! pgrep -x "SealSuite" > /dev/null; then
+        log "SealSuite wasn't running. Starting it..."
+        open -a "SealSuite"
+        sleep 8
+    fi
 
-    # IMPORTANT: Only click the toggle if it's currently in OFF state
-    # Clicking when it's ON would turn it OFF!
-
-    # Run the smart toggle script that:
-    # 1. Activates SealSuite briefly
-    # 2. Clicks the toggle
-    # 3. Returns focus to previous app
+    log "Executing AppleScript to click the VPN toggle button..."
     osascript "$HOME/Library/Scripts/sealsuite-vpn-monitor/toggle_vpn_smart.scpt" 2>&1
 
     if [ $? -eq 0 ]; then
-        log "Toggle clicked. Verifying connection..."
-
-        # Wait for connection to establish
-        sleep 5
-
-        # Re-check if VPN is now connected
-        if netstat -rn | grep -E "^10\." | grep -v "^10\.0\.0\." | grep -q "utun" || netstat -rn | grep -E "^172\.(1[6-9]|2[0-9]|3[01])\." | grep -q "utun"; then
-            log "✅ VPN reconnected successfully!"
-            osascript -e 'display notification "VPN reconnected successfully!" with title "🦭 VPN Monitor" sound name "Tink"' 2>/dev/null
+        # SealSuite takes time to re-establish the encrypted tunnel after the button is clicked.
+        log "Button clicked. Waiting 25s (Extended from 20s) for tunnel to rebuild..."
+        sleep 25
+        
+        if check_google; then
+            log "✅ SUCCESS: Tunnel rebuilt. Google is reachable."
+            osascript -e 'display notification "VPN silently toggled back ON!" with title "🦭 VPN Monitor" sound name "Tink"' 2>/dev/null
         else
-            log "⚠️ Toggle clicked but VPN still OFF - coordinates may be wrong"
-            osascript -e 'display notification "VPN toggle clicked but still OFF. Please check manually." with title "🦭 VPN Monitor" sound name "Glass"' 2>/dev/null
+            log "⚠️ WARNING: Clicked the button, waited 25s, but Google still unreachable. Potential login issue."
         fi
     else
-        log "ERROR: Failed to execute toggle script"
-        osascript -e 'display notification "Auto-reconnect failed. Please reconnect manually." with title "🦭 VPN Monitor Error" sound name "Basso"' 2>/dev/null
+        log "ERROR: AppleScript failed to click the button."
     fi
-else
-    log "VPN is connected. No action needed."
 fi

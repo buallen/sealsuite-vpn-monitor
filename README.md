@@ -17,7 +17,7 @@ SealSuite VPN sometimes disconnects automatically, requiring manual intervention
 ## ✨ Features
 
 - ✅ **Automatic Monitoring** - Checks VPN status every 60 seconds
-- ✅ **Smart Detection** - Uses curl to test internet connectivity (most reliable method)
+- ✅ **Smart Detection (v2.0)** - Dual-checks network connectivity and SealSuite UI state to prevent false alarms
 - ✅ **Auto-Reconnect** - Automatically toggles VPN back ON when disconnected
 - ✅ **Minimal Interruption** - Briefly activates window, clicks, returns focus
 - ✅ **Background Service** - Runs via macOS LaunchAgent
@@ -80,7 +80,8 @@ Test the monitor:
 1. **Toggle VPN OFF** in SealSuite
 2. **Wait up to 60 seconds** (monitor checks every minute)
 3. **Watch** as the script:
-   - Detects VPN is OFF (google.com not accessible)
+   - Detects network is unreachable
+   - Confirms SealSuite UI says "Off" or "00:00:00"
    - Briefly activates SealSuite window
    - Clicks the toggle
    - Returns focus to your previous app
@@ -91,33 +92,32 @@ Check logs in real-time:
 tail -f ~/Library/Logs/sealsuite-vpn-monitor.log
 ```
 
-You should see:
-```
-[timestamp] VPN is OFF (google.com is NOT reachable)
-[timestamp] VPN is DISCONNECTED. Will attempt to reconnect...
-[timestamp] Toggle clicked. Verifying connection...
-[timestamp] ✅ VPN reconnected successfully!
-```
-
 ---
 
 ## 📖 How It Works
 
-```
+```text
 ┌─────────────────────────────────────────┐
 │   LaunchAgent (runs every 60 seconds)   │
 └──────────────┬──────────────────────────┘
                │
                ▼
 ┌─────────────────────────────────────────┐
-│   Check Script (Bash)                   │
-│   • Is SealSuite running?               │
-│   • ping google.com (VPN blocks it)     │
+│   1. Network Check (Bash)               │
+│   • Ping 223.5.5.5 (Physical online?)   │
+│   • Curl google.com (VPN working?)      │
 └──────────────┬──────────────────────────┘
                │
-               ▼ (if google.com NOT accessible = VPN OFF)
+               ▼ (if google.com NOT accessible)
 ┌─────────────────────────────────────────┐
-│   AppleScript (Smart Toggle)            │
+│   2. UI State Verification (AppleScript)│
+│   • Read SealSuite window text          │
+│   • Verify "Time connected" or "Off"    │
+└──────────────┬──────────────────────────┘
+               │
+               ▼ (if UI confirmed OFF)
+┌─────────────────────────────────────────┐
+│   3. Auto-Toggle (AppleScript)          │
 │   • Activate SealSuite briefly          │
 │   • Click VPN toggle at coordinates     │
 │   • Return focus to previous app        │
@@ -125,22 +125,19 @@ You should see:
                │
                ▼
 ┌─────────────────────────────────────────┐
-│   Verify & Notify                       │
+│   4. Verify & Notify                    │
+│   • Wait 25s for tunnel to rebuild      │
 │   • Re-check with curl                  │
-│   • Send success/failure notification   │
+│   • Send success notification           │
 └─────────────────────────────────────────┘
 ```
 
-### Detection Method
+### v2.0 Detection Optimization
 
-The script uses `ping google.com` to detect VPN status:
-- **VPN ON** → google.com is reachable → No action needed
-- **VPN OFF** → google.com blocked by VPN policy → Auto-reconnect triggered
-
-**Why ping instead of curl?**
-- ⚡ Faster (ICMP vs HTTP)
-- 💾 Less resource usage
-- 🎯 More reliable for network detection
+To prevent false clicks during network lag, the script now:
+1. Waits up to 60 seconds (with multiple retries) if Google is unreachable.
+2. Specifically queries the SealSuite UI for the `Time connected` value and `VPN Connectivity` state.
+3. Only triggers a click if both the network is down **AND** the UI explicitly shows the VPN is disconnected.
 
 ---
 
@@ -211,12 +208,12 @@ launchctl load ~/Library/LaunchAgents/com.sealsuite.vpnmonitor.plist
 
 ## 📂 Project Structure
 
-```
+```text
 sealsuite-vpn-monitor/
 ├── install-one-click.sh           # One-click installation script
 ├── check_and_reconnect_vpn.sh     # Main monitoring script (curl-based detection)
 ├── toggle_vpn_smart.scpt          # Smart toggle (activates, clicks, returns focus)
-├── check_vpn_status.scpt          # VPN status checker (optional)
+├── check_vpn_status.scpt          # VPN status checker (Reads UI state)
 ├── find_toggle_position.sh        # Coordinate calibration tool
 ├── com.sealsuite.vpnmonitor.plist # LaunchAgent configuration
 ├── uninstall.sh                   # Uninstallation script
@@ -240,11 +237,6 @@ sealsuite-vpn-monitor/
    tail -f ~/Library/Logs/sealsuite-vpn-monitor.log
    ```
 
-   Look for:
-   - `VPN is OFF (google.com is NOT reachable)` - Detection working ✅
-   - `Toggle clicked. Verifying connection...` - Click triggered ✅
-   - `⚠️ Toggle clicked but VPN still OFF` - Coordinates wrong ❌
-
 3. **Verify LaunchAgent is running**
    ```bash
    launchctl list | grep sealsuite
@@ -263,11 +255,6 @@ If the script detects correctly but doesn't reconnect:
 2. **Update the coordinates** in `toggle_vpn_smart.scpt`:
    ```applescript
    do shell script "cliclick c:YOUR_X,YOUR_Y"
-   ```
-
-3. **Manually test the toggle**
-   ```bash
-   osascript ~/Library/Scripts/sealsuite-vpn-monitor/toggle_vpn_smart.scpt
    ```
 
 ---
