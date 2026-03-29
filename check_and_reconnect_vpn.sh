@@ -48,7 +48,7 @@ if ! check_google; then
             log "Google unreachable for 60s+. Checking SealSuite UI state..."
             
             # Double check if the app says it's OFF
-            UI_STATE=$(osascript "$HOME/Library/Scripts/sealsuite-vpn-monitor/check_vpn_status.scpt" 2>/dev/null)
+            UI_STATE=$(osascript "$HOME/Library/Scripts/sealsuite-vpn-monitor/check_vpn_status_smart.scpt" 2>/dev/null)
             log "SealSuite UI reports state: $UI_STATE"
             
             if [[ "$UI_STATE" == "off" ]] || [[ "$UI_STATE" == "app_not_running" ]]; then
