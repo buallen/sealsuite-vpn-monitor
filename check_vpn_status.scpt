@@ -9,48 +9,43 @@ tell application "System Events"
     tell process "SealSuite"
         try
             if exists window 1 then
-                set entireText to (entire contents) as text
+                set uiText to ""
                 
-                -- Priority 1: Check for explicit "Time connected" with non-zero value
-                -- This is a very reliable indicator of active connection
-                if entireText contains "Time connected" then
-                    if not (entireText contains "00:00:00") then
-                        return "on"
-                    end if
-                end if
+                try
+                    set staticTextElements to static texts of window 1
+                    repeat with st in staticTextElements
+                        try
+                            set uiText to uiText & (value of st as string) & " "
+                        end try
+                    end repeat
+                end try
                 
-                -- Priority 2: Check for "VPN Connectivity" with "On" or "Off"
-                -- Image shows "VPN Connectivity" label and "On" toggle
-                if entireText contains "VPN Connectivity" then
-                    -- We check for "On" or "Off" specifically in the context of connectivity
-                    -- Note: String concatenation in entireText might vary
-                    if entireText contains "VPN ConnectivityOn" or entireText contains "VPN Connectivity On" or (entireText contains "VPN Connectivity" and entireText contains "On") then
-                        -- Check if "Off" is also present to avoid confusion
-                        -- But usually "On" being present after "VPN Connectivity" is strong
-                        return "on"
-                    else if entireText contains "VPN ConnectivityOff" or entireText contains "VPN Connectivity Off" or (entireText contains "VPN Connectivity" and entireText contains "Off") then
-                        return "off"
-                    end if
-                end if
-                
-                -- Priority 3: Keywords for on state
-                if (entireText contains "Disconn") or (entireText contains "断开") then
+                if uiText contains "Time connected" and not (uiText contains "00:00:00") then
                     return "on"
                 end if
                 
-                -- Priority 4: Keywords for off state
-                if (entireText contains "Connect") or (entireText contains "连接") or (entireText contains "Off") then
+                if (uiText contains "VPN ConnectivityOn") or (uiText contains "VPN Connectivity On") or (uiText contains "Disconn") or (uiText contains "断开") then
+                    return "on"
+                end if
+                
+                if (uiText contains "VPN ConnectivityOff") or (uiText contains "VPN Connectivity Off") or (uiText contains "Connect") or (uiText contains "连接") or (uiText contains "Off") or (uiText contains "00:00:00") then
                     return "off"
                 end if
                 
-                -- Priority 5: Defaulting to "unknown" instead of guessing
-                return "unknown"
+                -- CRITICAL FALLBACK:
+                -- Electron apps often hide their UI text from basic AppleScript.
+                -- If we are in this script, the bash script has already confirmed Google is dead for 60s.
+                -- If we return "unknown" or "no_window", the script skips clicking. 
+                -- We must return "off" so the click proceeds.
+                return "off"
             else
-                -- If the main window isn't visible, we can't be sure
-                return "no_window"
+                -- Even if window is closed, if Google is dead, we want it to open and click it.
+                return "off"
             end if
-        on error errText
-            return "error:" & errText
+            
+        on error errMsg
+            -- Failsafe: return off to allow click
+            return "off"
         end try
     end tell
 end tell
