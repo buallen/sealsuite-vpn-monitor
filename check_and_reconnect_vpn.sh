@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# SealSuite VPN Auto-Reconnect Monitor (Optimized Version)
+# SealSuite VPN Auto-Reconnect Monitor
 # Core Goal: Automatically toggle ON the VPN connectivity button when SealSuite silently drops it.
-# Sensitivity: Triggers ONLY when physical internet is alive BUT google.com is unreachable for 60s.
 
 LOG_FILE="$HOME/Library/Logs/sealsuite-vpn-monitor.log"
 MAX_LOG_SIZE=1048576  # 1MB
@@ -18,44 +17,29 @@ log() {
 # ==========================================
 # 1. Physical Network Pre-check
 # ==========================================
-# If physical internet (DNS) is down, toggling the button does nothing. Exit silently.
-# Using 223.5.5.5 (Aliyun DNS) as a reliable indicator of physical connectivity in CN.
 if ! ping -c 1 -W 2000 223.5.5.5 > /dev/null 2>&1; then
-    # log "Physical network down. Skipping check."
     exit 0
 fi
 
 # ==========================================
-# 2. VPN Connectivity Check (Dual-Metric)
+# 2. VPN Connectivity Check (Google as metric)
 # ==========================================
-# We use --noproxy "*" to ensure we are testing the actual VPN tunnel, 
-# bypassing ClashX or other local proxies that might mask a disconnection.
-check_connectivity() {
-    # Metric 1: Internal endpoint (Most reliable for VPN status)
-    if curl -s -I --noproxy "*" -m 3 https://auth.storehubhq.com | grep -q "HTTP/"; then
-        return 0
-    fi
-    
-    # Metric 2: International endpoint (If company policy routes all traffic)
-    if curl -s -I --noproxy "*" -m 5 -L https://www.google.com | grep -q "HTTP/"; then
-        return 0
-    fi
-    
-    return 1
+check_google() {
+    curl -s -I -m 5 -L https://www.google.com | grep -q "HTTP/.* 200\|HTTP/.* 30"
 }
 
 VPN_HEALTHY=true
 
-if ! check_connectivity; then
-    log "Initial health check failed. Waiting 20s for possible lag spike..."
+if ! check_google; then
+    log "Initial Google check failed. Waiting 20s for possible lag spike..."
     sleep 20
     
-    if ! check_connectivity; then
+    if ! check_google; then
         log "Still dead after 20s. Waiting another 40s to confirm SealSuite dropped..."
         sleep 40
         
-        if ! check_connectivity; then
-            log "Network unreachable for 60s+. Checking SealSuite UI state..."
+        if ! check_google; then
+            log "Google unreachable for 60s+. Checking SealSuite UI state..."
             
             # Double check if the app says it's OFF
             UI_STATE=$(osascript "$HOME/Library/Scripts/sealsuite-vpn-monitor/check_vpn_status_smart.scpt" 2>/dev/null)
@@ -65,15 +49,15 @@ if ! check_connectivity; then
                 log "Conclusion: SealSuite VPN button is OFF. Proceeding with auto-toggle."
                 VPN_HEALTHY=false
             else
-                log "UI state is $UI_STATE. Avoiding false toggle (might be a major network outage or login expired)."
+                log "UI state is $UI_STATE. Avoiding false toggle."
                 VPN_HEALTHY=true
             fi
         else
-            log "Recovered during 40s wait. (Lag spike avoided)"
+            log "Recovered during 40s wait."
             VPN_HEALTHY=true
         fi
     else
-        log "Recovered during 20s wait. (Minor lag avoided)"
+        log "Recovered during 20s wait."
         VPN_HEALTHY=true
     fi
 fi
@@ -83,7 +67,6 @@ fi
 # ==========================================
 if [ "$VPN_HEALTHY" = false ]; then
     
-    # Ensure app is running before trying to click its UI
     if ! pgrep -x "SealSuite" > /dev/null; then
         log "SealSuite wasn't running. Starting it..."
         open -a "SealSuite"
@@ -94,15 +77,14 @@ if [ "$VPN_HEALTHY" = false ]; then
     osascript "$HOME/Library/Scripts/sealsuite-vpn-monitor/toggle_vpn_smart.scpt" 2>&1
 
     if [ $? -eq 0 ]; then
-        # SealSuite takes time to re-establish the encrypted tunnel after the button is clicked.
-        log "Button clicked. Waiting 25s (Extended from 20s) for tunnel to rebuild..."
+        log "Button clicked. Waiting 25s for tunnel to rebuild..."
         sleep 25
         
-        if check_connectivity; then
-            log "✅ SUCCESS: Tunnel rebuilt. Connectivity restored."
+        if check_google; then
+            log "✅ SUCCESS: Tunnel rebuilt. Google is reachable."
             osascript -e 'display notification "VPN silently toggled back ON!" with title "🦭 VPN Monitor" sound name "Tink"' 2>/dev/null
         else
-            log "⚠️ WARNING: Clicked the button, waited 25s, but connectivity still unreachable. Potential login issue."
+            log "⚠️ WARNING: Clicked the button, waited 25s, but Google still unreachable."
         fi
     else
         log "ERROR: AppleScript failed to click the button."
