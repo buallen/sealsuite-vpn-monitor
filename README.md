@@ -22,6 +22,7 @@ SealSuite VPN sometimes disconnects automatically, requiring manual intervention
 - ✅ **Minimal Interruption** - Briefly activates window, clicks, returns focus
 - ✅ **Background Service** - Runs via macOS LaunchAgent
 - ✅ **Comprehensive Logging** - Track all monitoring activity
+- ✅ **ClashX Friendly** - Smartly bypasses local proxies during health checks to prevent false positives
 - ✅ **One-Click Install** - Simple installation script
 - ✅ **Auto-Start** - Runs automatically on login
 
@@ -59,6 +60,10 @@ chmod +x install-one-click.sh
 7. Enable all toggles ✅
 
 **Without these permissions, auto-reconnect won't work!**
+
+### 🤝 Using with ClashX?
+
+If you are using **ClashX** or other proxies alongside SealSuite, check the [ClashX Coexistence Guide](CLASHX_COEXISTENCE.md) for optimization tips.
 
 ### Optional: For Better Click Accuracy
 
