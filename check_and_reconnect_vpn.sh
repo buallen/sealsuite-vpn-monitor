@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# SealSuite VPN Auto-Reconnect Monitor (Optimized Version)
+# SealSuite VPN Auto-Reconnect Monitor (v2.3 Optimized)
 # Core Goal: Automatically toggle ON the VPN connectivity button when SealSuite silently drops it.
 # Sensitivity: Triggers ONLY when physical internet is alive BUT google.com is unreachable for 60s.
 
@@ -18,10 +18,7 @@ log() {
 # ==========================================
 # 1. Physical Network Pre-check
 # ==========================================
-# If physical internet (DNS) is down, toggling the button does nothing. Exit silently.
-# Using 223.5.5.5 (Aliyun DNS) as a reliable indicator of physical connectivity in CN.
 if ! ping -c 1 -W 2000 223.5.5.5 > /dev/null 2>&1; then
-    # log "Physical network down. Skipping check."
     exit 0
 fi
 
@@ -29,19 +26,17 @@ fi
 # 2. VPN Connectivity Check (Google as metric)
 # ==========================================
 check_google() {
-    # -L to follow redirects (some captive portals might redirect)
-    # -m 5 to give it a bit more time for high-latency connections
     curl -s -I -m 5 -L https://www.google.com | grep -q "HTTP/.* 200\|HTTP/.* 30"
 }
 
 VPN_HEALTHY=true
 
 if ! check_google; then
-    log "Initial Google check failed. Waiting 20s (Extended from 15s) for possible lag spike..."
+    log "Initial Google check failed. Waiting 20s for possible lag spike..."
     sleep 20
     
     if ! check_google; then
-        log "Still dead after 20s. Waiting another 40s (Extended from 30s) to confirm SealSuite dropped..."
+        log "Still dead after 20s. Waiting another 40s to confirm SealSuite dropped..."
         sleep 40
         
         if ! check_google; then
@@ -81,11 +76,14 @@ if [ "$VPN_HEALTHY" = false ]; then
     fi
 
     log "Executing AppleScript to click the VPN toggle button..."
-    osascript "$HOME/Library/Scripts/sealsuite-vpn-monitor/toggle_vpn_smart.scpt" 2>&1
+    # Capture both stdout and stderr to help debug failures
+    OSASCRIPT_OUT=$(osascript "$HOME/Library/Scripts/sealsuite-vpn-monitor/toggle_vpn_smart.scpt" 2>&1)
+    EXIT_CODE=$?
 
-    if [ $? -eq 0 ]; then
-        # SealSuite takes time to re-establish the encrypted tunnel after the button is clicked.
-        log "Button clicked. Waiting 25s (Extended from 20s) for tunnel to rebuild..."
+    if [ $EXIT_CODE -eq 0 ]; then
+        log "Button click triggered successfully."
+        # SealSuite takes time to re-establish the encrypted tunnel
+        log "Waiting 25s for tunnel to rebuild..."
         sleep 25
         
         if check_google; then
@@ -95,6 +93,7 @@ if [ "$VPN_HEALTHY" = false ]; then
             log "⚠️ WARNING: Clicked the button, waited 25s, but Google still unreachable. Potential login issue."
         fi
     else
-        log "ERROR: AppleScript failed to click the button."
+        log "ERROR: AppleScript failed with exit code $EXIT_CODE."
+        log "Details: $OSASCRIPT_OUT"
     fi
 fi

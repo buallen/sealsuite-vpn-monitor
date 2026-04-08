@@ -1,5 +1,5 @@
 -- Smart VPN Toggle: Activate, Click, Return Focus
--- v2.2: Dynamic coordinate calculation based on window position
+-- v2.3: Use absolute path for cliclick to ensure reliability in background tasks
 
 -- Save current active application
 tell application "System Events"
@@ -10,13 +10,13 @@ end tell
 tell application "System Events"
 	if not (exists process "SealSuite") then
 		tell application "SealSuite" to launch
-		delay 2
+		delay 3
 	end if
 end tell
 
 -- Activate SealSuite briefly
 tell application "SealSuite" to activate
-delay 1.5
+delay 2
 
 tell application "System Events"
 	tell process "SealSuite"
@@ -24,24 +24,15 @@ tell application "System Events"
 		set winPos to position of window 1
 		set winSize to size of window 1
 		
-		-- Calibration: The toggle is usually at a specific relative position
-		-- Based on previous calibration X=735, Y=259
-		-- If we don't have a better reference, we use the center-right area 
-		-- where the "On/Off" toggle typically resides in the 'Overview' tab.
-		
 		-- Logic: Click relative to window top-left
-		-- We calculate the click point (assuming standard window size)
-		set clickX to (item 1 of winPos) + 735 - (item 1 of winPos) -- Placeholder logic
-		-- Better: Use the user's calibrated point if the window hasn't moved, 
-		-- but since we want it dynamic:
-		
-		-- If window is 1000 wide, 735 is ~73.5% from left.
-		-- If window is 600 high, 259 is ~43% from top.
+		-- If window is 1000 wide, toggle is ~73.5% from left.
+		-- If window is 600 high, toggle is ~43% from top.
 		set clickX to (item 1 of winPos) + ((item 1 of winSize) * 0.735)
 		set clickY to (item 2 of winPos) + ((item 2 of winSize) * 0.43)
 		
 		-- Execute double-click at the calculated point
-		do shell script "cliclick dc:" & (clickX as integer) & "," & (clickY as integer)
+		-- Using absolute path for cliclick
+		do shell script "/opt/homebrew/bin/cliclick dc:" & (clickX as integer) & "," & (clickY as integer)
 	end tell
 end tell
 
