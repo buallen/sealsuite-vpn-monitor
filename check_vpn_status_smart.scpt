@@ -1,5 +1,5 @@
 -- Smart AppleScript to check SealSuite VPN status
--- It brings the app to the front, checks the UI, and returns focus.
+-- v2.4: Use reopen to ensure window is visible
 
 tell application "System Events"
     if not (exists process "SealSuite") then
@@ -10,9 +10,12 @@ tell application "System Events"
     set previousApp to name of first application process whose frontmost is true
 end tell
 
--- Bring SealSuite to the front to ensure UI elements are rendered and readable
-tell application "SealSuite" to activate
-delay 1 -- Wait for UI to render
+-- Bring SealSuite to the front and ensure window is open
+tell application "SealSuite"
+    reopen
+    activate
+end tell
+delay 1.5 -- Wait for UI to render
 
 tell application "System Events"
     tell process "SealSuite"
