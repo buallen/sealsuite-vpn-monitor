@@ -14,13 +14,15 @@ SealSuite VPN sometimes disconnects automatically, requiring manual intervention
 
 ---
 
-## ✨ Features (v2.2 Ultimate)
+## ✨ Features (v2.4 Pro)
 
 - ✅ **Automatic Monitoring** - Checks VPN status every 60 seconds.
 - ✅ **Smart Detection** - Dual-checks network connectivity and SealSuite UI state to prevent false alarms.
+- ✅ **Robust Window Handling** - Automatically uses `reopen` to restore the SealSuite window even if it was manually closed (Fixes "Invalid Index" errors).
 - ✅ **Dynamic Coordinates** - Automatically calculates the toggle button position based on the SealSuite window location. Works on any monitor!
 - ✅ **UI State Verification** - Briefly brings the app to the front to read real-time connection status (Handles Electron rendering issues).
 - ✅ **Minimal Interruption** - Saves and restores your active window focus in under 1 second.
+- ✅ **Detailed Error Logging** - Captures and logs full AppleScript error messages for easier troubleshooting.
 - ✅ **Background Service** - Runs via macOS LaunchAgent.
 - ✅ **One-Click Install** - Simple installation script.
 
@@ -69,7 +71,7 @@ Test the monitor:
 2. **Wait up to 60 seconds** (monitor checks every minute).
 3. **Watch** as the script:
    - Detects network is unreachable.
-   - Brings SealSuite to the front briefly.
+   - Restores the SealSuite window (even if closed).
    - Confirms UI says "Off" or "00:00:00".
    - Calculates the button position and clicks it.
    - Restores your previous app focus.
@@ -99,7 +101,7 @@ tail -f ~/Library/Logs/sealsuite-vpn-monitor.log
                ▼ (if google.com NOT accessible)
 ┌─────────────────────────────────────────┐
 │   2. UI State Verification (Smart)      │
-│   • Activate SealSuite window           │
+│   • Restore/Activate SealSuite window   │
 │   • Read "Time connected" / Labels      │
 │   • Restore previous app focus          │
 └──────────────┬──────────────────────────┘
@@ -107,6 +109,7 @@ tail -f ~/Library/Logs/sealsuite-vpn-monitor.log
                ▼ (if UI confirmed OFF)
 ┌─────────────────────────────────────────┐
 │   3. Auto-Toggle (Dynamic)              │
+│   • Ensure window exists (Retry reopen) │
 │   • Get current window X, Y coordinates │
 │   • Calculate relative button position  │
 │   • Click VPN toggle                    │
@@ -120,10 +123,11 @@ tail -f ~/Library/Logs/sealsuite-vpn-monitor.log
 └─────────────────────────────────────────┘
 ```
 
-### v2.2 Optimization
+### v2.4 Optimization
 
-1. **Anti-Drift**: Uses AppleScript to query the SealSuite window's position and size. It then calculates the click target as a percentage of the window size. This means the script works even if you move the window to a secondary 4K monitor.
-2. **Double Confirmation**: To prevent clicking when you simply have bad Wi-Fi, it waits for a total of 60 seconds across multiple retries before checking the UI.
+1. **Zero-Window Resilience**: Older versions failed if you closed the SealSuite window. v2.4 uses the `reopen` command to forcefully bring the UI back before interacting.
+2. **Anti-Drift**: Uses AppleScript to query the SealSuite window's position and size. It then calculates the click target as a percentage of the window size. This means the script works even if you move the window to a secondary monitor.
+3. **Absolute Paths**: All background dependencies (like `cliclick`) now use absolute paths to ensure they run correctly under the LaunchAgent's restricted environment.
 
 ---
 
